@@ -123,7 +123,7 @@ app.post('/interactive-endpoint', async (req, res) => {
                 text: 'Reveal Secret'
               },
               action_id: 'reveal_secret',
-              value: JSON.stringify({ iv: encryptedSecret.iv, content: encryptedSecret.content })
+              value: JSON.stringify({ iv: encryptedSecret.iv, content: encryptedSecret.content, intended_user: selectedUserId })
             }
           }
         ]
@@ -134,11 +134,17 @@ app.post('/interactive-endpoint', async (req, res) => {
       res.status(500).send('Failed to send message');
     }
   } else if (payload.type === 'block_actions' && payload.actions[0].action_id === 'reveal_secret') {
-    // Handle button click
-    res.status(200).send(''); // Respond immediately to avoid timeout
-
-    const { iv, content } = JSON.parse(payload.actions[0].value);
+    const { iv, content, intended_user } = JSON.parse(payload.actions[0].value);
     const triggerId = payload.trigger_id;
+    const userId = payload.user.id;
+
+    if (userId !== intended_user) {
+      await slackClient.chat.postMessage({
+        channel: userId,
+        text: "You are not authorized to view this secret."
+      });
+      return;
+    }
 
     try {
       const decryptedSecret = decrypt({ iv, content }, secretKey);
