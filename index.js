@@ -39,6 +39,7 @@ const decrypt = (hash, secretKey) => {
 // Slash command endpoint to open the dialog
 app.post('/commands/share-secret', async (req, res) => {
   const triggerId = req.body.trigger_id;
+  const preFilledText = req.body.text; // Extract the text from the slash command
 
   const view = {
     type: 'modal',
@@ -58,7 +59,8 @@ app.post('/commands/share-secret', async (req, res) => {
         element: {
           type: 'plain_text_input',
           action_id: 'secret_text',
-          multiline: true
+          multiline: true,
+          initial_value: preFilledText // Pre-fill the text into the modal
         }
       },
       {
@@ -100,7 +102,8 @@ app.post('/interactive-endpoint', async (req, res) => {
   if (payload.type === 'view_submission' && payload.view.callback_id === 'submit-secret') {
     // Handle dialog submission
     const secretText = payload.view.state.values.secret_input.secret_text.value;
-    const userId = payload.user.id;
+    const senderId = payload.user.id;
+    const senderName = payload.user.name;
     const selectedUserId = payload.view.state.values.user_select.selected_user.selected_user;
 
     const encryptedSecret = encrypt(secretText, secretKey);
@@ -108,13 +111,13 @@ app.post('/interactive-endpoint', async (req, res) => {
     try {
       await slackClient.chat.postMessage({
         channel: selectedUserId,
-        text: 'You have received a secret. Click the button below to reveal it.',
+        text: `You have received a secret from <@${senderId}>.`,
         blocks: [
           {
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: 'You have received a secret. Click the button below to reveal it.'
+              text: `You have received a secret from <@${senderId}>.`
             },
             accessory: {
               type: 'button',
@@ -134,6 +137,7 @@ app.post('/interactive-endpoint', async (req, res) => {
       res.status(500).send('Failed to send message');
     }
   } else if (payload.type === 'block_actions' && payload.actions[0].action_id === 'reveal_secret') {
+    // Handle button click
     const { iv, content, intended_user } = JSON.parse(payload.actions[0].value);
     const triggerId = payload.trigger_id;
     const userId = payload.user.id;
